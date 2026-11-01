@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>管道智行者 3D 拆解</title>
+<style>
+/* Layout: full-height 3D stage on the left, a module rail + part card on the right (stacks under the stage on phones). */
+:root{
+  --bg:#eef2f4; --panel:#ffffff; --ink:#15202b; --muted:#5b6873; --line:#d6dde2;
+  --accent:#e8710a; --accent-ink:#ffffff; --stage:#e4e9ec; --chip:#f4f6f8; --warn:#9a5b00; --warn-bg:#fff2dc;
+  --f-body:"PingFang SC","Microsoft YaHei","Noto Sans SC",system-ui,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11161b; --panel:#182028; --ink:#e7edf2; --muted:#9aa8b4; --line:#2a3540;
+  --accent:#ff8a2a; --accent-ink:#1a1006; --stage:#151c22; --chip:#1f2932; --warn:#ffc46b; --warn-bg:#3a2a12; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161b; --panel:#182028; --ink:#e7edf2; --muted:#9aa8b4; --line:#2a3540;
+  --accent:#ff8a2a; --accent-ink:#1a1006; --stage:#151c22; --chip:#1f2932; --warn:#ffc46b; --warn-bg:#3a2a12; color-scheme:dark}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.6}
+.app{height:100%;display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-rows:auto minmax(0,1fr);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px;gap:12px 16px;box-sizing:border-box}
+header{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+h1{font-size:20px;margin:0;font-weight:700;letter-spacing:.02em;text-wrap:balance}
+h1 small{font-family:var(--f-mono);font-size:12px;color:var(--muted);font-weight:500;margin-left:8px;letter-spacing:.04em}
+.hint{color:var(--muted);font-size:13px}
+.stage{position:relative;min-height:0;border-radius:10px;background:var(--stage);overflow:hidden;border:1px solid var(--line)}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+.loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);font-size:14px}
+.bar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+  background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.bar label{font-size:13px;color:var(--muted);white-space:nowrap}
+.bar input[type=range]{flex:1 1 140px;min-width:0;accent-color:var(--accent)}
+button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:7px;padding:5px 11px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:500}
+button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+.tip{position:absolute;pointer-events:none;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:12px;white-space:nowrap;transform:translate(10px,10px)}
+aside{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.rail{display:flex;flex-direction:column;gap:6px}
+.rail h2,.card h2{font-size:13px;color:var(--muted);font-weight:500;margin:0 0 2px;letter-spacing:.06em}
+.mod{display:grid;grid-template-columns:12px minmax(0,1fr) auto;align-items:center;gap:10px;text-align:left;padding:7px 10px;background:var(--panel)}
+.mod .dot{width:12px;height:12px;border-radius:3px}
+.mod .k{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.mod[aria-pressed="true"]{box-shadow:inset 3px 0 0 var(--accent)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.card h3{margin:0 0 6px;font-size:17px;text-wrap:balance}
+.card p{margin:0 0 8px}
+.card dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:8px 0 0;font-size:13px}
+.card dt{color:var(--muted)} .card dd{margin:0;font-variant-numeric:tabular-nums}
+.tbc{display:inline-block;font-size:11px;padding:0 6px;border-radius:4px;background:var(--warn-bg);color:var(--warn);margin-left:6px;vertical-align:1px}
+.part{font-size:13px;color:var(--muted);margin-top:8px;border-top:1px dashed var(--line);padding-top:8px}
+.part b{color:var(--ink);font-weight:500}
+.foot{font-size:12px;color:var(--muted)}
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 62vh auto;height:auto}
+  h1{font-size:18px} h1 small{display:block;margin-left:0}
+  html,body{height:auto}
+}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto}}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>管道智行者 · 结构拆解<small>ABYSSUS I · No.1020</small></h1>
+    <span class="hint">拖动旋转 · 滚轮或双指缩放 · 点击零件查看说明</span>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="c" aria-label="管道机器人三维模型"></canvas>
+    <div class="loading" id="loading">正在载入模型（约 3.7 MB）…</div>
+    <div class="tip" id="tip" hidden></div>
+    <div class="bar">
+      <button class="primary" id="toggle" type="button">一键拆解</button>
+      <label for="ex">拆解程度</label>
+      <input id="ex" type="range" min="0" max="100" value="0">
+      <button id="spin" type="button" aria-pressed="false">自动旋转</button>
+      <button id="home" type="button">复位视角</button>
+    </div>
+  </div>
+  <aside>
+    <div class="rail" id="rail"><h2>七个功能模块（从前到后）</h2></div>
+    <div class="card" id="card"></div>
+    <p class="foot">模型由团队 STEP 文件（124 个实体）直接生成。未包含：主板与电池托盘、摄像头与图传、无线模块与线缆。标注“待确认”的内容由工程图推断，以团队说明为准。</p>
+  </aside>
+</div>
+
+<script type="importmap">{"imports":{"three":"./three.module.min.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './OrbitControls.js';
+
+const PARTS = {"off":[0,228.53100441484054,38],"scale":0.009448054853716387,"parts":[{"id":0,"m":"radj","u":7,"n":"弹簧 OD20 × 线径 2 × 长 90","vc":4487,"ic":25140,"po":0,"io":26924,"i32":0,"c":[-35.3,-18.1,38]},{"id":1,"m":"radj","u":8,"n":"弹簧 OD20 × 线径 2 × 长 90","vc":4487,"ic":25140,"po":77204,"io":104128,"i32":0,"c":[33.2,-17.3,38]},{"id":2,"m":"fadj","u":9,"n":"弹簧 OD20 × 线径 2 × 长 190","vc":2909,"ic":14064,"po":154408,"io":171864,"i32":0,"c":[42.5,408.7,38]},{"id":3,"m":"fadj","u":10,"n":"弹簧 OD20 × 线径 2 × 长 190","vc":2909,"ic":14064,"po":199992,"io":217448,"i32":0,"c":[-36.1,409.7,38]},{"id":4,"m":"fadj","u":11,"n":"M3×0.5 丝杆","vc":36763,"ic":138759,"po":245576,"io":466156,"i32":0,"c":[0,336,38]},{"id":5,"m":"radj","u":12,"n":"M3×0.5 丝杆","vc":36774,"ic":138747,"po":743676,"io":964320,"i32":0,"c":[0,-7,38]},{"id":6,"m":"front","u":13,"n":"轮子 Ø36×8 mm","vc":538,"ic":2484,"po":1241816,"io":1245044,"i32":0,"c":[-99,513,9.5]},{"id":7,"m":"front","u":14,"n":"轮子 Ø36×8 mm","vc":538,"ic":2484,"po":1250012,"io":1253240,"i32":0,"c":[99,513,9.5]},{"id":8,"m":"front","u":15,"n":"轮子 Ø36×8 mm","vc":538,"ic":2484,"po":1258208,"io":1261436,"i32":0,"c":[-99,513,69.5]},{"id":9,"m":"front","u":16,"n":"轮子 Ø36×8 mm","vc":538,"ic":2484,"po":1266404,"io":1269632,"i32":0,"c":[99,513,69.5]},{"id":10,"m":"rear","u":17,"n":"轮子 Ø36×8 mm","vc":538,"ic":2484,"po":1274600,"io":1277828,"i32":0,"c":[102.1,-55.9,46.5]},{"id":11,"m":"rear","u":18,"n":"轮子 Ø36×8 mm","vc":538,"ic":2484,"po":1282796,"io":1286024,"i32":0,"c":[-102.1,-55.9,46.5]},{"id":12,"m":"rear","u":19,"n":"轮子 Ø36×8 mm","vc":644,"ic":2796,"po":1290992,"io":1294856,"i32":0,"c":[102.1,-55.9,34]},{"id":13,"m":"rear","u":20,"n":"轮子 Ø36×8 mm","vc":644,"ic":2796,"po":1300448,"io":1304312,"i32":0,"c":[-102.1,-55.9,34]},{"id":14,"m":"front","u":0,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1309904,"io":1313600,"i32":0,"c":[-98.1,513.4,52.8]},{"id":15,"m":"front","u":0,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1317104,"io":1320800,"i32":0,"c":[-98.1,513.4,56]},{"id":16,"m":"front","u":0,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1324304,"io":1328000,"i32":0,"c":[-98.1,513.4,22]},{"id":17,"m":"front","u":0,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1331504,"io":1335200,"i32":0,"c":[-98.1,513.4,25.2]},{"id":18,"m":"front","u":0,"n":"轮轴三通组件（含挡圈）","vc":1852,"ic":6330,"po":1338704,"io":1349816,"i32":0,"c":[-88,516.4,39]},{"id":19,"m":"front","u":0,"n":"轮轴三通组件（含挡圈）","vc":1852,"ic":6330,"po":1362476,"io":1373588,"i32":0,"c":[-88,508.9,39]},{"id":20,"m":"front","u":1,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1386248,"io":1389944,"i32":0,"c":[99,512.3,52.8]},{"id":21,"m":"front","u":1,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1393448,"io":1397144,"i32":0,"c":[99,512.3,56]},{"id":22,"m":"front","u":1,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1400648,"io":1404344,"i32":0,"c":[99,512.3,22]},{"id":23,"m":"front","u":1,"n":"轮轴三通组件（含挡圈）","vc":616,"ic":1752,"po":1407848,"io":1411544,"i32":0,"c":[99,512.3,25.2]},{"id":24,"m":"front","u":1,"n":"轮轴三通组件（含挡圈）","vc":1852,"ic":6330,"po":1415048,"io":1426160,"i32":0,"c":[88.8,509.3,39]},{"id":25,"m":"front","u":1,"n":"轮轴三通组件（含挡圈）","vc":1852,"ic":6330,"po":1438820,"io":1449932,"i32":0,"c":[88.8,516.8,39]},{"id":26,"m":"scan","u":2,"n":"GM6020 云台电机","vc":2896,"ic":8220,"po":1462592,"io":1479968,"i32":0,"c":[0,138.6,38]},{"id":27,"m":"scan","u":2,"n":"GM6020 云台电机","vc":772,"ic":2262,"po":1496408,"io":1501040,"i32":0,"c":[0,124.3,38]},{"id":28,"m":"scan","u":2,"n":"GM6020 云台电机","vc":240,"ic":708,"po":1505564,"io":1507004,"i32":0,"c":[0,126.3,37.9]},{"id":29,"m":"scan","u":2,"n":"GM6020 云台电机","vc":126,"ic":288,"po":1508420,"io":1509176,"i32":0,"c":[-31.8,106.1,40.6]},{"id":30,"m":"scan","u":2,"n":"GM6020 云台电机","vc":2100,"ic":6198,"po":1509752,"io":1522352,"i32":0,"c":[-18,107.4,24.6]},{"id":31,"m":"scan","u":2,"n":"GM6020 云台电机","vc":278,"ic":798,"po":1534748,"io":1536416,"i32":0,"c":[-20.2,107.3,19.9]},{"id":32,"m":"scan","u":2,"n":"GM6020 云台电机","vc":5456,"ic":14580,"po":1538012,"io":1570748,"i32":0,"c":[-21.7,109.1,25.3]},{"id":33,"m":"scan","u":2,"n":"GM6020 云台电机","vc":72,"ic":168,"po":1599908,"io":1600340,"i32":0,"c":[-20.5,106.5,26.5]},{"id":34,"m":"scan","u":2,"n":"GM6020 云台电机","vc":2100,"ic":6198,"po":1600676,"io":1613276,"i32":0,"c":[-20.5,107.4,28.9]},{"id":35,"m":"scan","u":2,"n":"GM6020 云台电机","vc":278,"ic":798,"po":1625672,"io":1627340,"i32":0,"c":[-25.7,107.3,29.5]},{"id":36,"m":"scan","u":2,"n":"GM6020 云台电机","vc":144,"ic":276,"po":1628936,"io":1629800,"i32":0,"c":[-29.1,108.8,33.3]},{"id":37,"m":"scan","u":2,"n":"GM6020 云台电机","vc":432,"ic":876,"po":1630352,"io":1632944,"i32":0,"c":[-18.9,108.8,15.6]},{"id":38,"m":"scan","u":2,"n":"GM6020 云台电机","vc":240,"ic":708,"po":1634696,"io":1636136,"i32":0,"c":[0.1,126.3,38]},{"id":39,"m":"scan","u":2,"n":"GM6020 云台电机","vc":5775,"ic":16029,"po":1637552,"io":1672204,"i32":0,"c":[0,119.4,38]},{"id":40,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":106,"ic":300,"po":1704264,"io":1704900,"i32":0,"c":[-15.3,419.8,33.8]},{"id":41,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":106,"ic":300,"po":1705500,"io":1706136,"i32":0,"c":[-15.7,419.8,41.8]},{"id":42,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":106,"ic":300,"po":1706736,"io":1707372,"i32":0,"c":[-15.5,419.8,37.8]},{"id":43,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":2977,"ic":7626,"po":1707972,"io":1725836,"i32":0,"c":[-11.1,419.7,50]},{"id":44,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":4090,"ic":12564,"po":1741088,"io":1765628,"i32":0,"c":[0.2,413.8,38.5]},{"id":45,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":1066,"ic":2964,"po":1790756,"io":1797152,"i32":0,"c":[-20.2,419.8,37.6]},{"id":46,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":560,"ic":1476,"po":1803080,"io":1806440,"i32":0,"c":[1.7,465.7,38.5]},{"id":47,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":7476,"ic":23370,"po":1809392,"io":1854248,"i32":0,"c":[-12.6,442.3,26.7]},{"id":48,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":1087,"ic":3261,"po":1900988,"io":1907512,"i32":0,"c":[0.2,468.5,38.5]},{"id":49,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":2124,"ic":6336,"po":1914036,"io":1926780,"i32":0,"c":[0.2,458.2,38.5]},{"id":50,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":7476,"ic":23370,"po":1939452,"io":1984308,"i32":0,"c":[12.1,442.3,25.7]},{"id":51,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":212,"ic":624,"po":2031048,"io":2032320,"i32":0,"c":[0.2,464.3,38.5]},{"id":52,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":1932,"ic":8112,"po":2033568,"io":2045160,"i32":0,"c":[0.2,461.7,38.5]},{"id":53,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":212,"ic":624,"po":2061384,"io":2062656,"i32":0,"c":[0.2,459.1,38.5]},{"id":54,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":3731,"ic":9912,"po":2063904,"io":2086292,"i32":0,"c":[0.3,440.2,38.5]},{"id":55,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":7476,"ic":23370,"po":2106116,"io":2150972,"i32":0,"c":[13.1,442.3,50.4]},{"id":56,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":212,"ic":624,"po":2197712,"io":2198984,"i32":0,"c":[0.2,456.8,38.5]},{"id":57,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":1932,"ic":8112,"po":2200232,"io":2211824,"i32":0,"c":[0.2,454.2,38.5]},{"id":58,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":212,"ic":624,"po":2228048,"io":2229320,"i32":0,"c":[0.2,451.6,38.5]},{"id":59,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":7476,"ic":23370,"po":2230568,"io":2275424,"i32":0,"c":[-11.7,442.3,51.4]},{"id":60,"m":"drive","u":3,"n":"M3508 P19 减速电机","vc":212,"ic":624,"po":2322164,"io":2323436,"i32":0,"c":[0.2,464.9,38.5]},{"id":61,"m":"front","u":4,"n":"锥齿轮副","vc":3822,"ic":9312,"po":2324684,"io":2347616,"i32":0,"c":[0,513,24.5]},{"id":62,"m":"front","u":4,"n":"锥齿轮副","vc":3146,"ic":7950,"po":2366240,"io":2385116,"i32":0,"c":[0,492.2,38.5]},{"id":63,"m":"front","u":4,"n":"锥齿轮副","vc":3184,"ic":8028,"po":2401016,"io":2420120,"i32":0,"c":[-20,513,38.5]},{"id":64,"m":"front","u":4,"n":"锥齿轮副","vc":3184,"ic":8028,"po":2436176,"io":2455280,"i32":0,"c":[21,513,38.5]},{"id":65,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":17746,"ic":46314,"po":2471336,"io":2577812,"i32":0,"c":[-0.6,286.3,38.3]},{"id":66,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":424,"ic":1182,"po":2670440,"io":2672984,"i32":0,"c":[-7.4,267.8,31.5]},{"id":67,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":424,"ic":1182,"po":2675348,"io":2677892,"i32":0,"c":[-7.4,267.8,45.1]},{"id":68,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":424,"ic":1182,"po":2680256,"io":2682800,"i32":0,"c":[6.1,267.8,45.1]},{"id":69,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":420,"ic":1170,"po":2685164,"io":2687684,"i32":0,"c":[6.1,267.8,31.5]},{"id":70,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":3528,"ic":8652,"po":2690024,"io":2711192,"i32":0,"c":[1.3,261,36.3]},{"id":71,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":860,"ic":2520,"po":2728496,"io":2733656,"i32":0,"c":[-0.6,252.8,38.3]},{"id":72,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":860,"ic":2520,"po":2738696,"io":2743856,"i32":0,"c":[-0.6,263.8,38.3]},{"id":73,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":1448,"ic":5136,"po":2748896,"io":2757584,"i32":0,"c":[-0.6,257.9,38.3]},{"id":74,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":2328,"ic":6582,"po":2767856,"io":2781824,"i32":0,"c":[-0.6,249.7,38.3]},{"id":75,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":1774,"ic":5250,"po":2794988,"io":2805632,"i32":0,"c":[-0.6,260.6,38.3]},{"id":76,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":3528,"ic":8652,"po":2816132,"io":2837300,"i32":0,"c":[1.3,261,36.3]},{"id":77,"m":"fadj","u":5,"n":"M2006 P36 减速电机（前部丝杆）","vc":498,"ic":1458,"po":2854604,"io":2857592,"i32":0,"c":[-0.6,255,38.3]},{"id":78,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":17743,"ic":46296,"po":2860508,"io":2966968,"i32":0,"c":[-0.7,40.8,38.3]},{"id":79,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":424,"ic":1182,"po":3059560,"io":3062104,"i32":0,"c":[6.1,59.3,31.5]},{"id":80,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":424,"ic":1182,"po":3064468,"io":3067012,"i32":0,"c":[6.1,59.3,45.1]},{"id":81,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":424,"ic":1182,"po":3069376,"io":3071920,"i32":0,"c":[-7.4,59.3,45.1]},{"id":82,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":420,"ic":1170,"po":3074284,"io":3076804,"i32":0,"c":[-7.4,59.3,31.5]},{"id":83,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":3528,"ic":8652,"po":3079144,"io":3100312,"i32":0,"c":[-2.6,66.1,36.3]},{"id":84,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":860,"ic":2520,"po":3117616,"io":3122776,"i32":0,"c":[-0.6,74.3,38.3]},{"id":85,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":860,"ic":2520,"po":3127816,"io":3132976,"i32":0,"c":[-0.6,63.3,38.3]},{"id":86,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":1448,"ic":5136,"po":3138016,"io":3146704,"i32":0,"c":[-0.6,69.2,38.3]},{"id":87,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":2328,"ic":6582,"po":3156976,"io":3170944,"i32":0,"c":[-0.6,77.5,38.3]},{"id":88,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":1774,"ic":5250,"po":3184108,"io":3194752,"i32":0,"c":[-0.7,66.6,38.3]},{"id":89,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":3528,"ic":8652,"po":3205252,"io":3226420,"i32":0,"c":[-2.6,66.1,36.3]},{"id":90,"m":"radj","u":6,"n":"M2006 P36 减速电机（后部丝杆）","vc":498,"ic":1458,"po":3243724,"io":3246712,"i32":0,"c":[-0.6,72.2,38.3]},{"id":91,"m":"fadj","u":21,"n":"丝杆螺母滑板（待确认）","vc":496,"ic":1416,"po":3249628,"io":3252604,"i32":0,"c":[-0.1,314.5,38]},{"id":92,"m":"radj","u":22,"n":"丝杆螺母滑板（待确认）","vc":708,"ic":2064,"po":3255436,"io":3259684,"i32":0,"c":[-0.1,21.5,38.1]},{"id":93,"m":"scan","u":23,"n":"测距舱（空仓）","vc":1700,"ic":4776,"po":3263812,"io":3274012,"i32":0,"c":[0,167.4,38]},{"id":94,"m":"scan","u":24,"n":"测距舱盖","vc":256,"ic":756,"po":3283564,"io":3285100,"i32":0,"c":[0,191,38.1]},{"id":95,"m":"front","u":25,"n":"前轮转轴","vc":280,"ic":792,"po":3286612,"io":3288292,"i32":0,"c":[-42,512.3,39]},{"id":96,"m":"front","u":26,"n":"前轮转轴","vc":280,"ic":792,"po":3289876,"io":3291556,"i32":0,"c":[39,512.3,39]},{"id":97,"m":"front","u":27,"n":"前轮轴上部","vc":1135,"ic":3153,"po":3293140,"io":3299952,"i32":0,"c":[-52.3,512.9,49]},{"id":98,"m":"drive","u":28,"n":"M3508 外套圆饼","vc":2705,"ic":9036,"po":3306260,"io":3322492,"i32":0,"c":[0,490.8,38]},{"id":99,"m":"front","u":29,"n":"前轮轴下部","vc":704,"ic":1950,"po":3340564,"io":3344788,"i32":0,"c":[-62.1,512.9,29]},{"id":100,"m":"front","u":30,"n":"前轮轴下部","vc":704,"ic":1950,"po":3348688,"io":3352912,"i32":0,"c":[62.7,512.9,29]},{"id":101,"m":"front","u":31,"n":"前轮轴上部","vc":902,"ic":2514,"po":3356812,"io":3362224,"i32":0,"c":[52.4,512.9,49]},{"id":102,"m":"drive","u":32,"n":"M3508 支撑杆","vc":394,"ic":1176,"po":3367252,"io":3369616,"i32":0,"c":[0,445.8,64]},{"id":103,"m":"drive","u":33,"n":"M3508 支撑杆","vc":394,"ic":1176,"po":3371968,"io":3374332,"i32":0,"c":[0,421.8,12]},{"id":104,"m":"drive","u":34,"n":"M3508 后置圆饼","vc":1752,"ic":5130,"po":3376684,"io":3387196,"i32":0,"c":[0,378.8,38]},{"id":105,"m":"link","u":35,"n":"硬关节杆","vc":390,"ic":1164,"po":3397456,"io":3399796,"i32":0,"c":[20,213.7,38]},{"id":106,"m":"link","u":36,"n":"硬关节杆","vc":390,"ic":1164,"po":3402124,"io":3404464,"i32":0,"c":[-20,213.7,38]},{"id":107,"m":"link","u":37,"n":"固定轴","vc":680,"ic":2718,"po":3406792,"io":3410872,"i32":0,"c":[0,229.4,38]},{"id":108,"m":"scan","u":38,"n":"GM6020 与测距舱固定座","vc":1562,"ic":5376,"po":3416308,"io":3425680,"i32":0,"c":[0,147.8,38]},{"id":109,"m":"link","u":39,"n":"中部圆饼","vc":1730,"ic":5208,"po":3436432,"io":3446812,"i32":0,"c":[0,230.7,38]},{"id":110,"m":"link","u":40,"n":"中部圆饼","vc":1200,"ic":3612,"po":3457228,"io":3464428,"i32":0,"c":[0,196.4,38]},{"id":111,"m":"fadj","u":41,"n":"M2006 安装座","vc":1846,"ic":5538,"po":3471652,"io":3482728,"i32":0,"c":[0,239.7,37.9]},{"id":112,"m":"radj","u":42,"n":"M2006 安装座","vc":1846,"ic":5538,"po":3493804,"io":3504880,"i32":0,"c":[0,87.4,38.1]},{"id":113,"m":"fadj","u":43,"n":"M2006 安装座","vc":1740,"ic":5226,"po":3515956,"io":3526396,"i32":0,"c":[0,284.3,37.9]},{"id":114,"m":"radj","u":44,"n":"M2006 安装座","vc":1740,"ic":5226,"po":3536848,"io":3547288,"i32":0,"c":[0,42.9,38.1]},{"id":115,"m":"radj","u":45,"n":"丝杆导向杆","vc":548,"ic":1644,"po":3557740,"io":3561028,"i32":0,"c":[0,22.9,21.5]},{"id":116,"m":"fadj","u":46,"n":"丝杆导向杆","vc":560,"ic":1680,"po":3564316,"io":3567676,"i32":0,"c":[0,304.3,54.5]},{"id":117,"m":"radj","u":47,"n":"丝杆导向杆","vc":540,"ic":1620,"po":3571036,"io":3574276,"i32":0,"c":[0,22.9,54.5]},{"id":118,"m":"fadj","u":48,"n":"丝杆导向杆","vc":544,"ic":1632,"po":3577516,"io":3580780,"i32":0,"c":[0,304.3,21.5]},{"id":119,"m":"fadj","u":49,"n":"前置轮轴箱接头","vc":1814,"ic":5364,"po":3584044,"io":3594928,"i32":0,"c":[0,368.7,38]},{"id":120,"m":"radj","u":50,"n":"后置轮轴箱接头","vc":1768,"ic":5244,"po":3605656,"io":3616264,"i32":0,"c":[0,-41.1,38]},{"id":121,"m":"rear","u":51,"n":"后置轮轴箱","vc":920,"ic":2736,"po":3626752,"io":3632272,"i32":0,"c":[0,-59.3,38]},{"id":122,"m":"rear","u":52,"n":"从动侧轮臂","vc":1102,"ic":4020,"po":3637744,"io":3644356,"i32":0,"c":[56.1,-56.3,38.2]},{"id":123,"m":"rear","u":53,"n":"从动侧轮臂","vc":1102,"ic":4020,"po":3652396,"io":3659008,"i32":0,"c":[-56.1,-56.1,38.2]}]};
+const MODULES = [
+ {k:'front', t:'前端驱动轮组', c:'#e8710a', ax:150,
+  d:'M3508 的动力经锥齿轮副换向，分到左右两侧轮轴，带动 Ø36 mm 轮子压住管壁滚动，是整机的推进端。',
+  kv:[['轮子','Ø36 × 8 mm，共 4 个'],['传动','锥齿轮副换向'],['轮臂','左右两侧，随管径张开或收拢']]},
+ {k:'drive', t:'驱动电机 M3508', c:'#2f3a46', ax:95,
+  d:'RoboMaster M3508 P19 减速电机，C620 电调电流控制；主板上的 PID 做速度环精确控速，角度环走定长路程。',
+  kv:[['控制报文','CAN 0x200，电调 ID 1'],['反馈报文','0x201'],['控制方式','速度环 / 角度环（路程）']]},
+ {k:'fadj', t:'前部变径机构', c:'#2a7f62', ax:45,
+  d:'主动调节：M2006 转动 M3×0.5 丝杆，螺母每转移动 0.5 mm，拉动弹簧改变轮臂张角与压壁力。被动调节：弹簧让轮臂随管径的缓慢变化自动顺应，因此能在非突变变径的管道里行进。',
+  kv:[['电机','M2006 P36 + C610 电调'],['丝杆','M3 × 0.5 mm'],['弹簧','OD20 × 线径 2 × 长 190 mm']]},
+ {k:'link', t:'中部连接', c:'#8a7f72', ax:15,
+  d:'中部圆饼与硬关节杆把前部机构和测距舱连成一体，保证测距舱的旋转轴与机身轴线同轴。',
+  kv:[['零件','中部圆饼 ×2、硬关节杆 ×2、固定轴']]},
+ {k:'scan', t:'旋转测距舱', c:'#2f6fb5', ax:-20,
+  d:'GM6020 带动测距舱以 300 rpm 旋转。舱内 L432KC 采集松下 HG-C1050 激光位移传感器，经 433 MHz 无线模块与主板同步里程；每个点得到测距 ρ、角度 θ 和里程 x，汇成管道三维点云。',
+  kv:[['电机','GM6020，CAN 0x1FE 电流控制'],['反馈报文','0x206（电调 ID 2）'],['传感器','HG-C1050：50 ± 15 mm，重复精度 30 µm'],['同步','E62-433T20S 无线模块']]},
+ {k:'radj', t:'后部变径机构', c:'#3f9a7c', ax:-70,
+  d:'与前部相同的“电机 + 丝杆 + 弹簧”结构，独立调节后轮臂的张角与压壁力，前后两端各自适应管径。',
+  kv:[['电机','M2006 P36 + C610 电调'],['丝杆','M3 × 0.5 mm'],['弹簧','OD20 × 线径 2 × 长 90 mm']]},
+ {k:'rear', t:'后端从动轮组', c:'#c9852f', ax:-125,
+  d:'无动力的从动轮，与前端一起把机身撑在管道中间，减小晃动，保证扫描中心稳定。',
+  kv:[['轮子','Ø36 mm'],['轮臂','从动侧轮臂（左 / 右）']]}
+];
+const MOD = Object.fromEntries(MODULES.map(m=>[m.k,m]));
+
+// Real-ish material colours by part name; module colour is used for highlight.
+function baseColor(p){
+  const n=p.n;
+  if(n.startsWith('M3508 P19')||n.startsWith('GM6020 云台')) return 0x23272d;
+  if(n.startsWith('M2006 P36')) return 0x3b4048;
+  if(n.startsWith('轮子')) return 0xe8710a;
+  if(n.startsWith('弹簧')) return 0xb9c1c9;
+  if(n.startsWith('M3×0.5')) return 0xc9a227;
+  if(n.startsWith('锥齿轮')) return 0xb48a4d;
+  if(n.startsWith('轮轴三通')) return 0x4f86c6;
+  return 0xe6e1d8;
+}
+
+const canvas=document.getElementById('c'), stage=document.getElementById('stage');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(32,1,1,20000);
+const controls=new OrbitControls(camera,canvas); controls.enableDamping=true; controls.dampingFactor=0.08;
+scene.add(new THREE.HemisphereLight(0xffffff,0x6d6a64,1.5));
+const key=new THREE.DirectionalLight(0xffffff,2.0); key.position.set(400,700,500); scene.add(key);
+const rim=new THREE.DirectionalLight(0xffffff,0.7); rim.position.set(-500,200,-400); scene.add(rim);
+
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function applyTheme(){scene.background=new THREE.Color(cssVar('--stage')||'#e4e9ec');}
+applyTheme(); matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+const root=new THREE.Group(); scene.add(root);
+const meshes=[]; let units={};
+
+async function load(){
+  const res=await fetch('robot.bin'); if(!res.ok) throw new Error('robot.bin '+res.status); const buf=await res.arrayBuffer();
+  const s=PARTS.scale, o=PARTS.off;
+  for(const p of PARTS.parts){
+    const q=new Int16Array(buf,p.po,p.vc*3), pos=new Float32Array(p.vc*3);
+    // robot axis is STEP Y; map it to scene X, STEP Z to scene Y.
+    for(let i=0;i<p.vc;i++){
+      const x=q[i*3]*s+o[0], y=q[i*3+1]*s+o[1], z=q[i*3+2]*s+o[2];
+      pos[i*3]=y-230; pos[i*3+1]=z-38; pos[i*3+2]=x;
+    }
+    const idx=p.i32?new Uint32Array(buf,p.io,p.ic):new Uint16Array(buf,p.io,p.ic);
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setIndex(new THREE.BufferAttribute(idx,1)); g.computeVertexNormals();
+    const mat=new THREE.MeshStandardMaterial({color:baseColor(p),roughness:.55,metalness:.12,transparent:true,opacity:1});
+    const m=new THREE.Mesh(g,mat); m.userData.p=p; m.userData.base=baseColor(p); root.add(m); meshes.push(m);
+    (units[p.u]=units[p.u]||[]).push(m);
+  }
+  // explode vector per rigid unit: module shift along the axis + radial push + spread inside the module
+  const modY={}; for(const m of meshes){const k=m.userData.p.m;(modY[k]=modY[k]||[]).push(m.userData.p.c[1]);}
+  for(const k in modY){const a=modY[k];modY[k]=a.reduce((s,v)=>s+v,0)/a.length;}
+  for(const id in units){
+    const list=units[id]; const c=[0,0,0]; list.forEach(m=>m.userData.p.c.forEach((v,i)=>c[i]+=v/list.length));
+    const k=list[0].userData.p.m, mod=MOD[k];
+    const radial=(k==='front'||k==='rear')?0.75:0.45;
+    const v=new THREE.Vector3(mod.ax*1.0+(c[1]-modY[k])*0.25, (c[2]-38)*radial, c[0]*radial*0.9);
+    list.forEach(m=>m.userData.ex=v);
+  }
+  document.getElementById('loading').hidden=true;
+  frame(); setExplode(0); select(null);
+}
+
+function frame(){
+  // frame the fully exploded model so both states fit without moving the camera
+  const keep=ex; setExplode(1); const box=new THREE.Box3().setFromObject(root); setExplode(keep);
+  const size=box.getSize(new THREE.Vector3()), ctr=box.getCenter(new THREE.Vector3());
+  const r=size.length()/2, vf=camera.fov*Math.PI/180, hf=2*Math.atan(Math.tan(vf/2)*camera.aspect);
+  const d=r/Math.sin(Math.min(vf,hf)/2)*0.78;
+  const dir=new THREE.Vector3(-0.18,0.38,0.9).normalize();
+  camera.position.copy(ctr).addScaledVector(dir,d); controls.target.copy(ctr); controls.update();
+}
+
+let ex=0, target=0;
+function setExplode(t){ex=t; for(const m of meshes){m.position.copy(m.userData.ex).multiplyScalar(t);} }
+const exInput=document.getElementById('ex'), toggle=document.getElementById('toggle');
+exInput.addEventListener('input',()=>{target=exInput.value/100;setExplode(target);updateToggle();});
+toggle.addEventListener('click',()=>{target=target>0.5?0:1;updateToggle();});
+function updateToggle(){toggle.textContent=target>0.5?'一键组装':'一键拆解';}
+let spinning=false; const spinBtn=document.getElementById('spin');
+spinBtn.addEventListener('click',()=>{spinning=!spinning;spinBtn.setAttribute('aria-pressed',spinning);controls.autoRotate=spinning;controls.autoRotateSpeed=1.2;});
+document.getElementById('home').addEventListener('click',frame);
+
+// module rail
+const rail=document.getElementById('rail'); const btns={};
+MODULES.forEach((m,i)=>{const b=document.createElement('button');b.type='button';b.className='mod';b.setAttribute('aria-pressed','false');
+  b.innerHTML=`<span class="dot" style="background:${m.c}"></span><span>${m.t}</span><span class="k">${String(i+1).padStart(2,'0')}</span>`;
+  b.addEventListener('click',()=>select(cur===m.k?null:m.k));rail.appendChild(b);btns[m.k]=b;});
+
+let cur=null, curPart=null;
+function select(k,part){
+  cur=k; curPart=part||null;
+  for(const key in btns) btns[key].setAttribute('aria-pressed',key===k);
+  for(const m of meshes){
+    const on=!k||m.userData.p.m===k;
+    m.material.opacity=on?1:0.12; m.material.depthWrite=on;
+    // structural (printed) parts take the module colour when selected; motors, wheels, springs keep their own
+    if(k&&on&&m.userData.base===0xe6e1d8) m.material.color.set(MOD[k].c).lerp(new THREE.Color(0xffffff),0.35);
+    else m.material.color.setHex(m.userData.base);
+  }
+  const card=document.getElementById('card');
+  if(!k){card.innerHTML=`<h2>使用说明</h2><h3>点击左侧模型或右侧列表</h3><p>整机长约 663 mm，沿轴线从前到后分为七个功能模块。选中后其余部分会变淡；拖动“拆解程度”可以逐步拆开整机。</p><dl><dt>适用管径</dt><dd>135–200 mm（团队设计值）</dd><dt>当前能力</dt><dd>直管、竖直与斜向管段；转弯功能在后续版本</dd></dl>`;return;}
+  const m=MOD[k];
+  card.innerHTML=`<h2>模块 ${String(MODULES.indexOf(m)+1).padStart(2,'0')}</h2><h3>${m.t}</h3><p>${m.d}</p><dl>${m.kv.map(([a,b])=>`<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`+
+    (curPart?`<div class="part">选中零件：<b>${curPart.n.replace('（待确认）','')}</b>${curPart.n.includes('待确认')?'<span class="tbc">待确认</span>':''}</div>`:'');
+}
+
+// picking + hover
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2(); let down=null;
+function pick(e){const r=canvas.getBoundingClientRect();ptr.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);ray.setFromCamera(ptr,camera);
+  const hits=ray.intersectObjects(meshes.filter(m=>m.material.opacity>0.5),false);return hits[0]?hits[0].object:null;}
+canvas.addEventListener('pointerdown',e=>{down=[e.clientX,e.clientY];});
+canvas.addEventListener('pointerup',e=>{if(!down)return;const moved=Math.hypot(e.clientX-down[0],e.clientY-down[1]);down=null;if(moved>5)return;
+  const o=pick(e); if(!o){select(null);return;} select(o.userData.p.m,o.userData.p);});
+const tip=document.getElementById('tip');
+canvas.addEventListener('pointermove',e=>{if(e.pointerType!=='mouse'||down){tip.hidden=true;return;}const o=pick(e);
+  if(!o){tip.hidden=true;canvas.style.cursor='';return;}canvas.style.cursor='pointer';const r=stage.getBoundingClientRect();
+  tip.textContent=o.userData.p.n.replace('（待确认）','')+' · '+MOD[o.userData.p.m].t;tip.style.left=(e.clientX-r.left)+'px';tip.style.top=(e.clientY-r.top)+'px';tip.hidden=false;});
+canvas.addEventListener('pointerleave',()=>{tip.hidden=true;});
+
+function resize(){const r=stage.getBoundingClientRect();renderer.setSize(r.width,r.height,false);camera.aspect=r.width/Math.max(1,r.height);camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(stage); resize();
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function loop(){requestAnimationFrame(loop);
+  if(Math.abs(ex-target)>0.001){const n=reduce?target:ex+(target-ex)*0.12;setExplode(n);exInput.value=Math.round(n*100);}
+  controls.update(); renderer.render(scene,camera);}
+load().then(()=>{loop();window.__ready=true;}).catch(err=>{document.getElementById('loading').textContent='模型载入失败：'+err.message;});
+</script>
+
+</body>
+</html>
